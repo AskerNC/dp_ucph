@@ -35,18 +35,50 @@ end
 
 module vfi
 
-struct Par
-    beta::Float64
-    W::Int64
-    max_iter::Int64
-    delta::Int64
-    tol::Float64
-end
-
 mutable struct Sol
     grid_w::Array
-    Cstar::Array
+    C_star::Array
     V_star::Array
+    delta::Float64
 end
 
+function solve(par)
+
+    
+    #Initiate solution
+    sol = Sol(Array(0:par.W),
+            zeros(Int64,par.W+1),
+            zeros(Float64,par.W+1),
+            par.tol*100  
+            )
+    it =0
+    
+    
+    while (par.max_iter>=it) & (par.tol<sol.delta)
+        it = it+1
+        V_next = copy(sol.V_star)
+        
+
+        for w in sol.grid_w
+            c=Array(0:w)
+           
+            
+            V_vec = sqrt.(c).+par.beta .*V_next[w.-c.+1]
+            
+
+            star = findmax(V_vec)
+            
+            sol.V_star[w+1] = star[1] 
+            sol.C_star[w+1] = star[2]-1
+        
+        sol.delta = findmax(abs.(sol.V_star .- V_next))[1]
+            
+        end
+    
+
+    end
+    
+return sol
 end
+
+end 
