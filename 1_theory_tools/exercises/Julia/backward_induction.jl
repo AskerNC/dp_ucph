@@ -1,45 +1,51 @@
 
-struct Par
-    beta::Float64
-    W::Int64
-    T::Int64
+
+module backwards
+mutable struct Sol
+    W_grid::Array
+    C::Array
+    V::Array
 end
 
-
-function solve_backwards(par)
+function solve(par)
     
-    Vstar_bi = Array{Float64}(undef, par.W+1,par.T)
-    Cstar_bi = Array{Int64}(undef, par.W+1,par.T)
+    sol =   Sol(Array(0:par.W),
+            Array{Int64}(undef, par.W+1,par.T),
+            Array{Float64}(undef, par.W+1,par.T)
+            )
+
     
     # Initialize last period
-    Cstar_bi[:,par.T] = Array(0:par.W);
-    Vstar_bi[:,par.T] = sqrt.(Cstar_bi[:,par.T] )
+    sol.C[:,par.T] = sol.W_grid;
+    sol.V[:,par.T] = sqrt.(sol.C[:,par.T] )
     
     # Recursively solve earlier periods: 
     for t = par.T-1:-1:1
-        for w = 0:par.W
+        for w in sol.W_grid
             c = Array(0:w)
-            V_next = Vstar_bi[w.-c.+1,t+1]
+            V_next = sol.V[w.-c.+1,t+1]
             v_guess = sqrt.(c)+par.beta.*V_next    
 
             star = findmax(v_guess)
-            Vstar_bi[w+1,t] = star[1] 
-            Cstar_bi[w+1,t] = star[2]-1
+            sol.V[w+1,t] = star[1] 
+            sol.C[w+1,t] = star[2]-1
 
         end
     end
-    return Cstar_bi,Cstar_bi
+    return sol
 end
-    
+
+end
 
 
 module vfi
 
 mutable struct Sol
-    grid_w::Array
-    C_star::Array
-    V_star::Array
+    W_grid::Array
+    C::Array
+    V::Array
     delta::Float64
+    it::Int64
 end
 
 function solve(par)
@@ -49,17 +55,18 @@ function solve(par)
     sol = Sol(Array(0:par.W),
             zeros(Int64,par.W+1),
             zeros(Float64,par.W+1),
-            par.tol*100  
+            par.tol*100,
+            0
             )
-    it =0
     
     
-    while (par.max_iter>=it) & (par.tol<sol.delta)
-        it = it+1
-        V_next = copy(sol.V_star)
+    
+    while (par.max_iter>=sol.it) & (par.tol<sol.delta)
+        sol.it = sol.it+1
+        V_next = copy(sol.V)
         
 
-        for w in sol.grid_w
+        for w in sol.W_grid
             c=Array(0:w)
            
             
@@ -68,10 +75,10 @@ function solve(par)
 
             star = findmax(V_vec)
             
-            sol.V_star[w+1] = star[1] 
-            sol.C_star[w+1] = star[2]-1
+            sol.V[w+1] = star[1] 
+            sol.C[w+1] = star[2]-1
         
-        sol.delta = findmax(abs.(sol.V_star .- V_next))[1]
+        sol.delta = findmax(abs.(sol.V .- V_next))[1]
             
         end
     
@@ -80,5 +87,25 @@ function solve(par)
     
 return sol
 end
+
+
+mutable struct Sim
+    W::Int64
+    T::Int64
+    C::Array
+end
+
+function simulate(sol,T,W)
+    sim = Sim(W,T,Array{Int64}(undef,T))
+
+    W_now = sim.W
+    for t = 1:T
+        sim.C[t]=sol.C[W_now+1]
+        W_now -= sim.C[t]
+    end
+
+    return sim
+end
+
 
 end 
