@@ -1,6 +1,7 @@
 # import packages used
 import numpy as np
 import scipy.optimize as optimize
+from scipy import interpolate # Interpolation routines
 
 def solve_consumption_grid_search(par):
      # initialize solution class
@@ -21,13 +22,14 @@ def solve_consumption_grid_search(par):
     while (par.max_iter>= sol.it and par.tol<sol.delta):
         sol.it +=1
         V_next = sol.V.copy()
+        interp = interpolate.interp1d(par.grid_W,V_next,bounds_error=False,fill_value='extrapolate')
         for iw,w in enumerate(grid_W):  # enumerate automaticcaly unpack w
-            fun = lambda x: -V(x,w,V_next,grid_W,par)       
+            fun = lambda x: -V(x,w,interp,par)       
             
-            res = optimize.minimize(fun,sol.C[iw],bounds =((1e-4,1-1e-4),))
+            res = optimize.minimize(fun,0.5,bounds =((1e-8,1-1e-8),))
             
             sol.V[iw] = -res.fun
-            sol.C[iw] = res.x
+            sol.C[iw] = res.x*w
             
             
         sol.delta = np.amax(np.abs(sol.V - V_next))
@@ -36,6 +38,7 @@ def solve_consumption_grid_search(par):
 
 
 def solve_consumption_grid_search2(par):
+    
      # initialize solution class
     class sol: pass
     sol.C = np.zeros(par.num_W)
@@ -72,7 +75,7 @@ def solve_consumption_grid_search2(par):
     return sol
 
 
-def V(x,w,V_vec,grid_W,par):
+def V(x,w,interp,par):
     #"unpack" c
     if type(x) == np.ndarray: # vector-type: depends on the type of solver used
         c = w*x[0] 
@@ -81,6 +84,4 @@ def V(x,w,V_vec,grid_W,par):
 
     wt1 = w-c
 
-    Vt1 = np.interp(wt1,grid_W,V_vec)
-
-    return np.sqrt(c)+par.beta*Vt1 
+    return np.sqrt(c)+par.beta*interp(wt1)

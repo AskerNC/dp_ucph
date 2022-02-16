@@ -1,6 +1,9 @@
 
 
 module backwards
+
+
+
 mutable struct Sol
     W_grid::Array
     C::Array
@@ -24,7 +27,7 @@ function solve(par)
         for w in sol.W_grid
             c = Array(0:w)
             V_next = sol.V[w.-c.+1,t+1]
-            v_guess = sqrt.(c)+par.beta.*V_next    
+            v_guess = sqrt.(c)+par.β.*V_next    
 
             star = findmax(v_guess)
             sol.V[w+1,t] = star[1] 
@@ -40,24 +43,24 @@ end
 
 module vfi
 
-mutable struct Sol
+
+using Parameters # For default values in struct (@with_kw)
+
+@with_kw mutable struct Sol
     W_grid::Array
     C::Array
     V::Array
-    delta::Float64
-    it::Int64
+    delta::Float64 = 100000.
+    it::Int64 = 0
 end
 
 function solve(par)
 
     
     #Initiate solution
-    sol = Sol(Array(0:par.W),
-            zeros(Int64,par.W+1),
-            zeros(Float64,par.W+1),
-            par.tol*100,
-            0
-            )
+    sol = Sol(W_grid = Array(0:par.W),
+            C = zeros(Int64,par.W+1),
+            V = zeros(Float64,par.W+1))
     
     
     
@@ -70,7 +73,7 @@ function solve(par)
             c=Array(0:w)
            
             
-            V_vec = sqrt.(c).+par.beta .*V_next[w.-c.+1]
+            V_vec = sqrt.(c).+par.β .*V_next[w.-c.+1]
             
 
             star = findmax(V_vec)
