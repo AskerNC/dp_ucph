@@ -92,7 +92,7 @@ class sieve():
                 z0 =-np.cos((np.linspace(1,n[j],n[j])-0.5)*np.pi/n[j])   # nodes on [-1,1]
             elif tp=='rand': 
                 z0 = 2*np.sort(np.random.random(n[j]))-1                 # nodes on [-1,1]
-            else: raise RuntimeErrort('gridtype not implmeneted')
+            else: raise RuntimeError('gridtype not implmeneted')
             x0=(z0+1)*((b[j]-a[j])/2)+a[j];                              # nodes on [a,b]
             x.append(x0);
             z.append(z0);
