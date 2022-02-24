@@ -7,7 +7,7 @@ using FastGaussQuadrature
 using Distributions
 using Interpolations
 using ..Struct_types
-#include("Struct_types.jl")
+#include("Struct_types.jl"jupy)
 
 """Class to implement deaton's model with log-normally distrubuted income shocks"""
 
@@ -60,7 +60,7 @@ using ..Struct_types
             q, w = gausslegendre(n_y)
             weights = w ./ 2
             q_ = (q .+ 1 ) ./2
-            y = quantile.(Normal(μ,σ), q_) 
+            y = exp.(quantile.(Normal(μ,σ), q_) )
         else
             error("Non-supported integration type")      
         end
