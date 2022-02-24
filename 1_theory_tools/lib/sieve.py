@@ -61,7 +61,6 @@ class sieve():
 
         # Generate gridpoints
         self.x,self.z =sieve.grid(self.n, self.a, self.b, self.gridtype)
-<<<<<<< HEAD
         B = sieve.basis(self.z, self.deg, self.btype)
         self.B=B
         self.pB=np.linalg.inv(B.T@B)@B.T        
@@ -206,8 +205,6 @@ class sieve():
         
         for arg in ('deg', 'a', 'b', 'btype', 'gridtype', 'knots'): 
             setattr(self, arg, expand(self.k, eval(arg)))
-=======
->>>>>>> 9a5f73200bd588eeb114db391b81d41e634e17bb
 
         # uniform internal knots
         self.knotsx,self.knotsz =sieve.grid(self.nknots, self.a, self.b, expand(self.k, 'u'))
