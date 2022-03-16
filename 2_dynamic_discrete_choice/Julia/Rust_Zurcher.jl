@@ -4,7 +4,21 @@
 module Rust
 
 
-    using Optim, SparseArrays, DataFrames
+    using Optim, SparseArrays, DataFrames, LinearAlgebra
+  
+    mutable struct Solution
+        optimum
+        params::Array
+        se::Array
+
+    # Initialize Model Parameters
+        function Solution( optimum="",params=[],se=[])
+               
+        return new(optimum, params,se)
+        end
+    end
+
+
 
     mutable struct Model
         β::Float64 # Discount Factor
@@ -13,14 +27,15 @@ module Rust
         EV::Array{Float64} # Expected Value Array
         K::Int64 # Size of State Space
         max::Int64 # Max of mileage
-        
+        sol:: Solution        
     
     # Initialize Model Parameters
         function Model( β = .9999, K = 90; 
                             π = [.348, .639, .013],params = [3.6, 10], max= 450)
         EV = ones(K, 1)   
+        sol=Solution()
         
-        return new( β, params, π , EV, K, max)
+        return new( β, params, π , EV, K, max,sol)
         end
     end
 
@@ -159,7 +174,45 @@ module Rust
      
         params0 = copy(model.params)
         optimum = optimize( objFunc, params0 )
+
+        model.sol.optimum = optimum
+        model.sol.params = model.sol.optimum.minimizer
         return optimum
+    end
+
+
+    function inference(model::Model,data::Data)
+        model.params = model.sol.params
+
+        tmpP = Rust.choice_p(model)
+        byOb = tmpP[data.exog,:]
+
+        T = length(data.exog)
+        tp = Rust.transition_probs(model) 
+
+        tmpT2 = tp[:,2:end] .* tmpP[2:end,:]'
+        
+        
+        dR = -(1 .- tp * tmpP)
+        dTheta = - (tp*(1:1:90)*-0.001) .* tmpP
+        dEV = inv(Array((I -  hcat(1 .- sum(tmpT2,dims=2) , tmpT2) .* model.β))) * hcat(dTheta, dR)
+
+        # Derivative of utility with respect to parameters
+        
+        tmp = -(1 .- byOb .* (data.endog .== 0) .- (1 .-byOb) .* (data.endog .== 1))
+
+
+        score = hcat( -.001*data.exog, -ones(T, 1)).*tmp
+
+        # Add the derivative of the difference in Expected Value
+        score .+= model.β*(dEV[1,:]' .* ones(T,1) .- dEV[data.exog, :]) .*tmp
+        
+        # Calculate inverse of the covariance
+        H = inv(score'score)
+        model.sol.se = sqrt.(diag(H))
+
+        hcat(model.sol.params, model.sol.se)
+
     end
 
 
