@@ -63,6 +63,7 @@ class zurcher():
         maxV = np.maximum(value_keep,value_replace) 
         logsum = (maxV + np.log(np.exp(value_keep-maxV)  +  np.exp(value_replace-maxV)))  # This is the Logsum 
         ev1 = self.P1@logsum
+        
 
         if output == 1:
             return ev1
