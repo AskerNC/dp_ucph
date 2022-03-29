@@ -4,7 +4,7 @@
 module Rust
 
 
-    using Optim, SparseArrays, DataFrames, LinearAlgebra
+    using Optim, SparseArrays, DataFrames, LinearAlgebra, PyFormattedStrings
   
     mutable struct Solution
         optimum
@@ -198,6 +198,43 @@ module Rust
                         exp.( u[1,:] + model.β *model.EV       .- max_EV  ) +
                         exp.( u[2,:] .+ model.β *model.EV[1]   .- max_EV) )
         return P_k 
+    end
+
+
+
+
+    ### Solving #######
+    struct Soptions
+        # Successive approximations step
+        sa_max::Int64      # Maximum number of contractions steps
+        sa_min::Int64      # Minimum number of contraction steps
+        sa_tol ::Float64 # Absolut toletance before
+        #Newton-Kantorovich steps
+        max_fxpiter::Int64     # Maximum number of times to switch between Newton-Kantorovich iterations and contraction iterations.
+        pi_max ::Int64     # Maximum number of Newton-Kantorovich steps
+        pi_tol ::Float64 # Final exit tolerance in fixed point algorithm, measured in units of numerical precision
+        tol_ratio::Float64 # Relative tolerance before switching to N-K algorithm when discount factor is supplied as input in solve.poly
+        printfxp ::Int64       # Print iteration (0= no output), (1=compressed output), (2= detailed iteraion output)
+
+    # Initialize Model Parameters
+        function Soptions( sa_max=50,sa_min=10, sa_tol=1.0e-10,max_fxpiter=5,pi_max=10,
+                            pi_tol=10e-12, tol_ratio=1.0e-02,printfxp=0)
+            
+        return new(sa_max,sa_min, sa_tol,max_fxpiter,pi_max,pi_tol, tol_ratio,printfxp)
+        end
+    end
+
+
+    function solve_nfxp(m::Model;soptions::Soptions=Soptions())
+
+        #soption::Soptions
+        t1 = time_ns()
+
+        sleep(1)
+
+        t2 = time_ns()
+        time = (t2-t1)*1e-9
+        println(f"Elapsed time: {time:.3f} seconds")
     end
 
 
