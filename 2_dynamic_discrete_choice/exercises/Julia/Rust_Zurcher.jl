@@ -158,6 +158,10 @@ module Rust
         
         dev1 = dbellman(model,pk)
 
+
+        # Update model
+        model.EV = ev1
+
         return ev1, pk, dev1
     end
 
@@ -229,13 +233,49 @@ module Rust
 
         #soption::Soptions
         t1 = time_ns()
+        
 
-        sleep(1)
+        for k in 1:soption.max_fxpiter
+            if soptions.printfxp>0
+                println("Begin contraction iterations (for the $k time)")
+            end
+            V0, iter = sa(bellman,V0)
+
+
+
+
+
+
+
+
+
 
         t2 = time_ns()
         time = (t2-t1)*1e-9
         println(f"Elapsed time: {time:.3f} seconds")
     end
+
+
+
+
+
+
+    function sa(model::Model,soptions::Soptions )
+        # Solve for fixed point using successive approximations
+        iteration = Dict()
+        iteration[:tol] = Array{Float64}(undef,soptions.sa_max)
+        iteration[:rtol] = Array{Float64}(undef,soptions.sa_max)
+        iteration[:convergred] = "false"
+        for i in 1:soptions.sa_max
+            V = bellman(model)
+        end
+
+
+
+    end
+
+
+
 
 
     function partialLL( model::Model, data::Data)
