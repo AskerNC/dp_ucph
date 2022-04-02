@@ -138,8 +138,8 @@ class zurcher():
         csum_p = np.cumsum(self.p)
         dx1 = 0
         for val in csum_p:
-            dx1 += u_dx>val
-        
+            dx1 += u_dx>val 
+         
         x = np.zeros((T,N),dtype=int)
         x1 =  np.zeros((T,N),dtype=int)
         d = np.nan + np.zeros((T,N))

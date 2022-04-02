@@ -119,7 +119,7 @@ def score(theta, model, solver, data, pnames):
     dev_dtheta = np.linalg.solve(F,dbellman_dtheta)
 
     # Step 3: compute derivative of log-likelihood wrt. parameters
-    score = ((d - (1- lik_pr))[:,None])   * ( np.vstack((-np.ones(N), dc[x-1], np.zeros((n_p,N)))).T + np.broadcast_to(dev_dtheta[0],(N,2+n_p)) - dev_dtheta[x-1] )
+    score = ( np.array(d - (1- lik_pr))[:,None])   * ( np.vstack((-np.ones(N), dc[x-1], np.zeros((n_p,N)))).T + np.broadcast_to(dev_dtheta[0],(N,2+n_p)) - dev_dtheta[x-1] )
 
     if theta.size>2:
         for i_p in range(n_p): 
