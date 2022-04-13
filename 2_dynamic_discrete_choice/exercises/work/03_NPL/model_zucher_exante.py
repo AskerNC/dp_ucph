@@ -100,22 +100,29 @@ class zurcher():
 
         if Finv is None:
             self.unc_state_transition(pk)
+            
+        
         
         # Euler constant
         eulerc = np.euler_gamma
 
-        value_keep = -self.cost + eulerc-np.log(pk)
-        value_replace = -self.RC - self.cost[0] + eulerc - np.log(1-pk) 
-        pv = value_keep*pk + value_replace*(1-pk)
-    
-        self.Vsigma = np.ravel(self.Finv@pv)
+        # INSET HERE
+        ue_replace = -self.RC - self.cost[0] + eulerc - np.log(1-pk)
+        ue_keep = -self.cost + eulerc - np.log(pk)
+
+
+        self.Vsigma = self.Finv @   ( np.multiply(1-pk,ue_replace) + np.multiply(pk,ue_keep) )
+
 
     def lambdaa(self):
-        
-        value_keep = -self.cost + self.beta*self.P1@self.Vsigma
-        value_replace = -self.RC - self.cost[0]  + self.beta*self.P1[0,:]@self.Vsigma 
+        # INSET HERE
+        EVsigma = self.P1@self.Vsigma
 
-        pk=1/(1+np.exp(value_replace-value_keep))
+        # Value of options:
+        value_keep = -self.cost + self.beta*EVsigma
+        value_replace = -self.RC - self.cost[0] + self.beta*EVsigma[0]  
+
+        pk = 1/(1+np.exp(value_replace-value_keep))
         return  pk
     
     def read_busdata(self, bustypes = [1,2,3,4]): 
