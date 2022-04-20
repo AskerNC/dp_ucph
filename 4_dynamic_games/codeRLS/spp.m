@@ -88,7 +88,7 @@ classdef spp
 	    
 	    % Calculate expected value of value function V(s') = V(x',c')
 	    % conditional on investing a=1: 
-	    EV_1 =  (1-prob(jc))*V(jc,jc) + prob(jc) * V(jc,jc+1);
+	    EV_1 =  (1-prob(jc))*V(jc,jc) + prob(jc) * V(jc,jc+1)
 	    
 	    v_I = mp.payoff(x) - mp.K(c) + mp.beta * EV_1;
 	    v_N = ( mp.payoff(x) + mp.beta * prob(jc) * V(ix,jc+1) )/( 1 - mp.beta*(1-prob(jc)) );

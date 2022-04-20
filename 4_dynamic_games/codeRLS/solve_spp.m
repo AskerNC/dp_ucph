@@ -56,7 +56,7 @@ end
 %**************************************************************************
 
 h1 = figure(1);
-surf(mp.c,mp.c,P, V)
+%surf(mp.c,mp.c,P, V)
 surf(mp.c,mp.c,P)
 title('Policy function, solcial planner')
 ylabel('Current marginal cost, x') % Corresponds to rows in V
