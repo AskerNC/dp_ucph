@@ -58,14 +58,11 @@ def solve_DC(par):
                     interp0 = interpolate.interp1d(par.grid_M,sol.V[0,:,t+1], bounds_error=False, fill_value = "extrapolate")
                     interp1 = interpolate.interp1d(par.grid_M,sol.V[1,:,t+1], bounds_error=False, fill_value = "extrapolate")
                   
-                    m_next = par.R*(m-c)+par.W*L
-            
-                    V0 = interp0(m_next)
-                    V1 = interp1(m_next)
+                     # Fill in
             
                     # Compute the log-sum
                     maxM = np.maximum(V0,V1)
-                    EV_next = maxM +par.sigma*np.log(np.exp((V0-maxM)/par.sigma)+np.exp((V1-maxM)/par.sigma))    
+                    EV_next = #Fill 
                 
                 V_guess = util(c,L,par)+par.beta*EV_next
                 index = np.argmax(V_guess)
@@ -99,7 +96,9 @@ def simulate (par,sol):
         V1 = interp1(sim.M[:,t])
         
         # Work choice
-        prob = 1/(1+np.exp((V0-V1)/par.sigma))  # probabilty of working for each person given state  
+        
+        # Fill in 
+        
         I = eps[:,t] <= prob # Indicator function for working
 
         # Consumption of discrete choice

@@ -195,7 +195,7 @@ classdef spp
 				I(t)=P(ix(t),ic(t)); 
 				ix(t+1)=I(t)*ic(t)+(1-I(t))*ix(t);
 				ic(t+1)=ic(t) + (u(t)<mp.prob(ic(t)));
-				if ix(t)==mp.N;
+				if ix(t)==mp.N-1;
 					break;
 					disp('got here')
 				end

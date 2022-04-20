@@ -71,7 +71,7 @@ def euler_error_func(x,t,par,sol):
     
     c = x
     
-    m_next = par.R*(par.grid_M - c)[:,np.newaxis] + par.eps[np.newaxis,:] # creating a matrix with state grid points as rows and different shocks as columns
+    m_next = #Fill in. Hint: create a matrix with state grid points as rows and add the different shocks as columns
 
     interp = interpolate.interp1d(par.grid_M,sol.C[:,t+1], bounds_error=False, fill_value = "extrapolate") 
 
@@ -81,7 +81,7 @@ def euler_error_func(x,t,par,sol):
     
     U_now = marg_util(c,par)    # Marginal utility this period
 
-    euler_error = U_now-par.beta*par.R*EU_next
+    euler_error = # fill in the Euler error
 
     return euler_error
 

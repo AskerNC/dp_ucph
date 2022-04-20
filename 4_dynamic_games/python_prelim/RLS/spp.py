@@ -1,6 +1,11 @@
 
 import numpy as np
-
+import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib import cm # for colormaps
+def empty_class():
+    class sim: pass
+    return sim
 class Ssp_model():
 
     def __init__(self,dict_={}) :
@@ -133,4 +138,72 @@ class Ssp_model():
                 V[ix,jc], P[ix,jc]  = self.solve_interior(ix,jc,V)
 
 
+        self.V = V
+        self.P = P
+
         return V, P 
+
+    def simulate(self):
+        # initial
+        
+
+        ix = [1]
+        ic = [1]
+        I = []
+        
+
+        np.random.seed(2020)
+        u = np.random.uniform(size=self.T+1)
+
+        for t in range(self.T):
+            
+            I.extend([ int(self.P[ix[t],ic[t]] )])
+            ix.extend([ I[t]*ic[t] + (1-I[t])*ix[t]])
+            ic.extend( ic[t] + (u[t] <self.prob[ic[t]]) )
+
+            if ix[t]==self.N-1:
+                print(f'got here: t={t}, ix={ix[t]}')
+                break
+
+        self.sim = empty_class()
+        self.sim.ix = ix
+        self.sim.ic = ic
+        self.sim.I = I
+        self.sim.t = list(range(t+1))
+        self.sim.x = self.c[self.sim.ix]
+        self.sim.c = self.c[self.sim.ic]
+
+    def plot_solution(self):
+        if not hasattr(self,'V'):
+            self.state_recursion()
+
+        for y in ['P', 'V']:
+            df = getattr(self,y)
+            #[::-1,::-1].T
+            
+
+            mask = np.ones(df.shape, dtype=bool, )
+            mask[np.triu_indices_from(mask)] = False
+            #mask = mask[::-1,::-1].T
+
+            # Set up the matplotlib figure
+            f, ax = plt.subplots(figsize=(11, 9))
+
+            # Generate a custom diverging colormap
+            #cmap = sns.diverging_palette(np.min(df) ,np.max(df), as_cmap=True)
+
+            ticks = ['' for i in range(df.shape[0])]
+
+            for i in range(self.maxc+1):        
+                j = int(np.floor(i/(self.maxc) *(df.shape[0]-1)))
+
+                ticks[j] = i  
+            ticks.reverse()
+
+
+            ax.set_title(y)
+            ax.set_xlabel('State of the art marginal cost, c')
+            ax.set_ylabel('Current marginal costs, x')
+            # Draw the heatmap with the mask and correct aspect ratio
+            sns_plot = sns.heatmap(df, mask=mask, cmap=cm.jet, center=0,
+                    linewidths=.5, cbar_kws={"shrink": .5},xticklabels=ticks,yticklabels=ticks)
