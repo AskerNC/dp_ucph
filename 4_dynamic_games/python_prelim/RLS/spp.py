@@ -21,6 +21,7 @@ class Ssp_model():
         self.beta = np.exp(-0.05)
         self.dt = 1
         self.T = 1000
+        self.Kform = 'smooth'
     
 
         for key,value in dict_.items():
@@ -34,8 +35,10 @@ class Ssp_model():
         # Functional forms
 
     def K(self,c):
-        return self.k0+self.k1/(1+c)
-
+        if self.Kform=='smooth':
+            return self.k0+self.k1/(1+c)
+        elif self.Kform=='constant':
+            return self.k1
 
     def payoff(self,x):
         return (self.p-x) * self.dt
