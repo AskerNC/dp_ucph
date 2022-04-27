@@ -14,7 +14,7 @@ classdef lf
 	    mp.Dt = 1;
 
 			% update paramaters with input
-	    if nargin>0
+	    if nargin>0 
 	        pfields=fieldnames(mpopt);
 	        for i=1:numel(pfields);
 	            mp.(pfields{i})=mpopt.(pfields{i});
