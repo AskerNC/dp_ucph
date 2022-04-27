@@ -93,7 +93,12 @@ class Lf_model():
 		# vN2 value of not investing for player 2
 		# vI2 value of investing for player 2 	    
 		# Initialize datastructure for the state space
-        pass
+        eq= SimpleNamespace(P1=[],vN1=[],vI1=[],P2=[],vN2=[],vI2=[])
+
+
+        self.tau =[]
+        for i in range(self.nC):
+            pass
 
 
 

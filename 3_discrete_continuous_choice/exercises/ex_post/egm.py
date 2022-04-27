@@ -68,6 +68,7 @@ def EGM_vec (sol,t,par):
     # Future marginal utility
     marg_u_plus = util.marg_util(fac*c_plus,par)
     marg_u_plus = np.reshape(marg_u_plus,(par.Na,dim))
+
     avg_marg_u_plus = np.sum(w*marg_u_plus,1)
 
     # Currect C and m
