@@ -2,9 +2,10 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import cm # for colormaps
+from scipy import optimize
 import copy
 from types import SimpleNamespace
-
+#import pandas as pd
 
 class Lf_model():
 
@@ -58,6 +59,13 @@ class Lf_model():
         # create stage_index
         self.rlsIndex()
 
+        # create empty containers for eq
+        self.cSS()
+
+        # create linear index 
+        self.cESS()
+
+
 
 
     def rlsIndex(self):
@@ -93,34 +101,19 @@ class Lf_model():
 		# vN2 value of not investing for player 2
 		# vI2 value of investing for player 2 	    
 		# Initialize datastructure for the state space
-        eq= SimpleNamespace(P1=[],vN1=[],vI1=[],P2=[],vN2=[],vI2=[])
 
+        
 
-        self.tau =[]
+        self.ss =[SimpleNamespace() for i in range(self.nC)]
         for i in range(self.nC):
-            pass
 
+            EQs = np.empty((5,i+1,i+1),dtype=object)
 
-
-
-    def K(self,c):
-        if self.Kform=='smooth':
-            return self.k0+self.k1/(1+self.k2*c)
-        elif self.Kform=='constant':
-            return self.k1
-
-    def payoff(self,x):
-        return (self.p-x) * self.Dt
-
-    def r1(self,x1,x2):
-        return np.max((x2-x1,0))
-    
-    def r2(self,x1,x2):
-        return np.max((x1-x2,0))
-
-    def Phi(self,vN,vI):
-        return np.fmax(vN,vI) 
-
+            ## allow for 5 equilibria, but there need to be at least one:
+            EQs[4,:,:]= SimpleNamespace(P1=[],vN1=[],vI1=[],P2=[],vN2=[],vI2=[])
+            
+            self.ss[i].EQs = EQs # container for identified equilibriums
+            self.ss[i].nEQ = np.zeros((i+1,i+1), dtype=int) #container for number of eqs in (x1,x2,c) point
 
 
     def cESS(self):
@@ -137,7 +130,7 @@ class Lf_model():
 
         ess = SimpleNamespace()
 
-        ess.index = np.empty((n,n,n))
+        ess.index = np.empty((n,n,n),dtype=object)
         ess.index[:,:,:] =np.nan
 
         for ic in range(n):
@@ -147,9 +140,9 @@ class Lf_model():
                     ess.index[ic,ic1,ic2] = self.essindex(n,ic1+1,ic2+1,ic+1)
 
         #  N*(N+1)*(2*N+1)/6 = sum(1^2 + 2^2 + 3^2 + ... + N^2)
-        shape =(1,n*(n+1)*(2*n+1)//6 )
-        ess.esr = np.zeros(shape)
-        ess.bases = np.ones(shape)
+        shape =(n*(n+1)*(2*n+1)//6 ,)
+        ess.esr = np.zeros(shape,dtype=int)
+        ess.bases = np.ones(shape, dtype=int)
 
         self.ess = ess 
         
@@ -170,3 +163,381 @@ class Lf_model():
             index = 1+ x*(x+1)*(2*x+1) //6 - ic*(ic+1)*(2*ic+1)//6 + 2 *(ic-1) + np.ravel_multi_index((ic2-1,ic1-1),(ic,ic)) + 1 - 1* (ic2-1) 
         
         return index 
+
+
+
+### useful functions
+
+    def K(self,c):
+        if self.Kform=='smooth':
+            return self.k0+self.k1/(1+self.k2*c)
+        elif self.Kform=='constant':
+            return self.k1
+
+    def payoff(self,x):
+        return (self.p-x) * self.Dt
+
+    def r1(self,x1,x2):
+        return np.max((x2-x1,0))
+    
+    def r2(self,x1,x2):
+        return np.max((x1-x2,0))
+
+    def Phi(self,vN,vI):
+        return np.fmax(vN,vI) 
+
+
+    def quad(self,a,b,c):
+        #Solves:  ax^2  + bx + c = 0
+		# but also always return 0 and 1 as candidates for probability of
+		# investment
+
+        d = b**2 - 4*a*c
+
+
+        if abs(a) < 1e-8:
+            pstar =  [0. , 1., -c/b]
+        else:
+            if d < 0:
+                pstar = [0. ,1.]
+            elif d == 0:
+                pstar = [0. ,1. , -b/(2*a)];
+            else:
+                pstar = [0. ,1. , (-b - np.sqrt(d))/(2*a),  (-b + np.sqrt(d))/(2*a)]
+
+        return np.array(pstar, dtype=object)
+
+
+
+
+
+
+    ##### solving the model 
+
+
+    ## last 
+    def solve_last_corner(self):
+        #  output: Equilibrium of state space point (h,h,h) with h = mp.nC
+
+        h = self.nC -1 # number of tech levels (minus 1 for index )
+        c = self.minc # State of the art marginal cost for last tech. level
+
+
+        # Both players have state of the art technology implemented ic1=ic2=c
+        # If K>0 the vN1 = r1/(1-beta) .... geometric sum
+        vN1 = (self.r1(c,c)+self.beta * max(0,-self.K(c)))  /  (1-self.beta)
+
+        vI1 = vN1 - self.K(c)
+        P1 = vI1 > vN1;  #  Equivalent to 0>mp.K(c)
+    
+        vN2 = (self.r2(c,c)+self.beta * max(0 , -self.K(c)))  /  (1-self.beta)
+        vI2 = vN2 - self.K(c)
+        P2 = vI2 > vN2  # Equivalent to 0>mp.K(c) and hence equal to P1;
+
+        self.ss[h].EQs[0,h,h] = SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2);
+        # Only one equilibrium is possible
+        self.ss[h].nEQ[h,h]=1
+        self.ess.bases[self.ess.index[h,h,h] -1 ]= 1 
+
+
+    def solve_last_edge(self):
+        '''
+        OUTPUT:
+			% Equilibria lf.EQ(P1, vN1, vI1, P2, vN2, vI2) for edge state space points
+			% of the final layer:
+			% Final layer <=> s=(x1,x2,c) with c = min(mp.C) 
+			% Edge <=> s=(x1,x2,c) with x2 = c = min(mp.C) and x1 > c or
+			% s=(x1,x2,c) with x1 = c = min(mp.C) and x2 > c    
+
+        '''
+        ic = self.nC -1# Get the level of technology final layer
+        c = self.minc # Get state of the art marginal cost for tech. of final layer
+
+        h = 0 
+        # h is used to select equilibria in the corner of the final layer but there
+        # is only ever 1 equilibria in the corner
+        # If we did not apply this apriori knowledge we would have to use ESS
+        
+
+        # Get the value of max choice in the corner of final layer s = (c,c,c)
+        g1_ccc = max(self.ss[ic].EQs[h,ic,ic].vN1,self.ss[ic].EQs[h,ic,ic].vI1);
+        g2_ccc = max(self.ss[ic].EQs[h,ic,ic].vN2,self.ss[ic].EQs[h,ic,ic].vI2);
+
+        #  Player 2 is at the edge s=(x1,x2,c) with x2=c=min(mp.C) and x1>c
+        for ic1 in range(ic):
+            
+            x1 = self.C[ic1]
+            vI1 = self.r1(x1,c) - self.K(c) + self.beta* g1_ccc
+
+
+            vN1search = lambda z : self.r1(x1,c) + self.beta * self.Phi(z,vI1) - z
+
+            res = optimize.root(vN1search,x0 = vI1)
+            vN1 = res.x
+
+            P1 = vI1 > vN1
+
+
+            vN2 = ( self.r2(x1,c) + self.beta * (P1*g2_ccc+(1-P1)*self.Phi(0,-self.K(c))) )  /  ( 1-self.beta*(1-P1) )
+            vI2 = vN2 - self.K(c)
+            P2 = vI2 > vN2;
+
+            self.ss[ic].EQs[h,ic1,ic] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
+            
+            # Only one equilibrium is possible
+            self.ss[ic].nEQ[ic1,ic]=1
+            self.ess.bases[self.ess.index[ic,ic1,ic1] -1]= 1 
+
+        # Player 1 is at the edge s=(x1,x2,c) with x1=c=min(mp.C) and x2>c
+        for ic2 in range(ic):
+            
+            x2 = self.C[ic2]
+            vI2 = self.r2(c,x2) - self.K(c) + self.beta* g2_ccc
+
+            vN2search = lambda x : self.r2(c,x2) + self.beta * self.Phi(x,vI2) - x
+
+            res = optimize.root(vN2search,x0 = vI2)
+            vN2 = res.x
+
+            P2 = vI2 > vN2
+
+
+            vN1 = ( self.r1(c,x2) + self.beta * (P2*g1_ccc+(1-P2)*self.Phi(0,-self.K(c))) )  /  ( 1-self.beta*(1-P2) )
+            vI1 = vN1 - self.K(c)
+            P1 = vI1 > vN1;
+
+
+            self.ss[ic].EQs[h,ic,ic2] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
+            
+            # Only one equilibrium is possible
+            self.ss[ic].nEQ[ic,ic2]=1
+            self.ess.bases[self.ess.index[ic,ic,ic2]-1]= 1 
+
+
+    def solve_last_interior(self):
+
+        # outside loop
+        ic =self.nC-1
+        c= self.C[ic]
+
+        def g1( iC1 , iC2, iC):
+            eq1 =  self.ss[iC].EQs[self.ess.esr[self.ess.index[iC,iC1,iC2] -1] , iC1, iC2] 
+            
+            return np.maximum( eq1.vN1, eq1.vI1)
+        def g2( iC1 , iC2, iC):
+            eq1 =  self.ss[iC].EQs[self.ess.esr[self.ess.index[iC,iC1,iC2] -1], iC1, iC2] 
+            return np.maximum( eq1.vN2, eq1.vI2)
+        
+
+        for ic1 in range(ic):
+            for ic2 in range(ic):
+                # Player 1 -> leads to P2 candidates
+                a = self.r1(self.C[ic1], self.C[ic2]) - self.K(c) + self.beta*g1(ic, ic2, ic) 
+                b = self.beta*(g1(ic, ic, ic)-g1(ic, ic2, ic))
+                d = self.r1(self.C[ic1],self.C[ic2]);
+                e = self.beta*g1(ic1, ic, ic);
+
+                    
+                b_0 = - self.beta * b 
+                b_1 = self.beta * g1(ic1, ic, ic) + (self.beta-1)*b - self.beta*a
+                b_2 = self.r1(self.C[ic1],self.C[ic2] ) + (self.beta-1) * a
+
+
+                pstar2 = self.quad(b_0, b_1, b_2)
+
+                # always return 1 and 0 for the pure strategies
+
+
+                # Player 2 -> leads to P1 candidates
+                A = self.r2(self.C[ic1], self.C[ic2]) - self.K(c) + self.beta*g2(ic1, ic, ic); 
+                B = self.beta*(g2(ic, ic, ic)-g2(ic1, ic, ic));
+                D = self.r2(self.C[ic1],self.C[ic2]);
+                E = self.beta*g2(ic, ic2, ic);
+
+                d_0 = - self.beta * B;
+                d_1 = self.beta*g2(ic, ic2, ic) + (self.beta-1) * B - self.beta*A;
+                d_2 = self.r2(self.C[ic1],self.C[ic2]) + (self.beta-1) * A;
+
+                pstar1 = self.quad(d_0, d_1, d_2);
+                    
+                # Find equilibria based on candidates
+                # Number of equilibria found are 0 to begin with
+
+                count = 0
+                for i in range(len(pstar1)):
+                    for j  in range(len(pstar2)):
+                        if np.all( [k in [0,1] for k in [i,j] ] ): # these are pure strategies
+                            # If the polynomial is negative vI > vN
+                            # hence player invests set exPj=1 else 0
+                            # exP1 is best response to pstar2(j)
+                            exP1 = b_2 + b_1 * pstar2[j] + b_0 * pstar2[j]**2 < 0 
+                            exP2 = d_2 + d_1 * pstar1[i] + d_0 * pstar1[i]**2 < 0 
+
+                            # check if both are playing best response
+                            # in pure strategies. Players best response
+                            # should be equal to the candidate to which
+                            # the other player is best responding.
+                            if np.abs(exP1 - pstar1[i]) < 1e-8 and np.abs(exP2-pstar2[j]) < 1e-8:
+                                # if exP1=0 and pstar_i=0 true
+                                # if exP1=1 and pstar_i=1 true
+                                # Testing whether best response exP1 is
+                                # equal to pstar1(i) to which Player 2
+                                # is best responding ...
+                                count = count + 1;
+                                vI1 = a + b*pstar2[j]; 
+                                vN1 = (d + e*pstar2[j] + self.beta*(1-pstar2[j])*(a+b*pstar2[j]))*pstar1[i]     +     (1-pstar1[i])*(d+e*pstar2[j])/(1-self.beta*(1-pstar2[j]))
+                                vI2 = A + B*pstar1[i]; 
+                                vN2 = (D + E*pstar1[j] + self.beta*(1-pstar1[i])*(A+B*pstar1[i]))*pstar2[j]     +     (1-pstar2[j])*(D+E*pstar1[i])/(1-self.beta*(1-pstar1[i]))
+                                
+
+                                self.ss[ic].EQs[count-1, ic1, ic2] = SimpleNamespace(P1=pstar1[i],vN1=vN1,vI1= vI1,P2=pstar2[j],vN2=vN2,vI2= vI2)
+                            
+                        elif i > 1 and j > 1 and pstar1[i] >= 0 and pstar2[j] >= 0 and pstar1[i] <= 1 and pstar2[j] <= 1:
+                            count = count + 1
+                            v1 = a + b * pstar2[j]
+                            v2 = A + B * pstar1[i]
+                            self.ss[ic].EQs[count-1, ic1, ic2] = SimpleNamespace(P1=pstar1[i],vN1=v1,v1= vI1,P2=pstar2[j],vN2=v2,vI2= v2)
+
+                self.ss[ic].nEQ[ic1,ic2] = count
+                self.ess.bases[self.ess.index[ic,ic1,ic2] -1]= count
+
+
+
+    ## upper layers 
+    def solve_corner(self,ic):
+        # ic is the index of the layer 
+        
+        c = self.C[ic]
+
+        # propability of techonological development
+        p = self.p[ic]
+
+
+        # find index for equilibrium selection h=1 for simple selection rule
+        # Need ic+1 because ss(ic+1).EQs(ic,ic,h).eq is to be accessed
+        h = self.ess.esr[self.ess.index[ic+1,ic,ic]-1] +1
+
+        eq = self.ss[ic+1].EQs[h,ic,ic]
+
+        vN1 = (self.r1(c,c)+self.beta * p* np.maximum(eq.vN1, eq.vI1) + self.beta * (1-p) * np.maximum(0,-self.K(c) ) )  /  (1- (1-p)*self.beta)
+        vI1 = vN1 - self.K(c)
+
+        vN2 = (self.r2(c,c)+self.beta * p* np.maximum(eq.vN2, eq.vI2) + self.beta * (1-p) * np.maximum(0,-self.K(c) ) )  /  (1- (1-p)*self.beta)
+        vI2 = vN2 - self.K(c)
+
+        P1 = vI1 > vN1;  #  Equivalent to 0>mp.K(c)
+        P2 = vI2 > vN2  # Equivalent to 0>mp.K(c) and hence equal to P1;
+
+
+
+        self.ss[ic].EQs[0,ic,ic] = SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2);
+        
+        # Only one equilibrium is possible
+        # No update of ESS.bases is necessary in principle: "there can BE ONLY ONE
+	    # equilibrium"  https://www.youtube.com/watch?v=sqcLjcSloXs+
+
+        self.ss[ic].nEQ[ic,ic]=1
+        self.ess.bases[self.ess.index[ic,ic,ic] -1 ]= 1 
+
+
+
+
+    def solve_edge(self,ic):
+        
+        c = self.C[ic]
+
+        # propability of techonological development
+        p = self.p[ic]
+
+
+        def H1(iC1, iC2, iC):
+            index  = self.ess.esr(self.index(iC+1,iC1,iC2)-1)+1
+            
+            eq_p = self.ss[iC+1].EQs[iC1, iC2, index].eq
+            eq   = self.ss[iC  ].EQs[iC1, iC2, index].eq
+            return p* self.Phi(eq_p.vN1,eq_p.vI1) + (1-p) *self.Phi(eq.vN1,eq.vI1) 
+        
+        def H2(iC1, iC2, iC):
+            index  = self.ess.esr(self.index(iC+1,iC1,iC2)-1)+1
+            eq_p = self.ss[iC+1].EQs[iC1, iC2, index].eq
+            eq   = self.ss[iC  ].EQs[iC1, iC2, index].eq
+            return p* self.Phi(eq_p.vN2,eq_p.vI2) + (1-p) *self.Phi(eq.vN2,eq.vI2) 
+
+        #Efficiency ... why evaluate the call for each run of following loop? i is
+		# constant in domain outside loop!! What changes in the function is the ESS.
+    
+        #  Player 2 is at the edge 
+        for ic1 in range(ic):
+            
+            c1 = self.C[ic1]
+
+            vI1 = self.r1(c1,c) - self.K(c) + self.beta* H1(ic,ic,ic)
+
+            index = self.ess.esr[self.ess.index[ic+1,ic1,ic]-1 ]+1
+            eq_p = self.ss[ic+1].EQs[index,ic1,ic].eq
+            
+            def vN1search(z):
+                return self.r1(c1,c) + self.beta * ( p * ( np.maximum( eq_p.vN1,eq_p.vI1 ) ) + (1-p)* np.maximum(z,vI1) ) - z 
+                
+
+            res = optimize.root(vN1search,x0 = vI1)
+            vN1 = res.x
+
+            P1 = vI1 > vN1
+
+            
+            vN2 = ( self.r2(c1,c) + self.beta * (P1*H2(ic,ic,ic)+(1-P1)*(p*self.Phi(eq_p.vN2,eq_p.vI2) + (1-p) * self.Phi(0,-self.K(c)) ) ) )   /  ( 1-self.beta*(1-P1)*(1-p) )
+            vI2 = vN2 - self.K(c)
+            P2 = vI2 > vN2;
+
+            self.ss[ic].EQs[1,ic1,ic] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
+            
+            # Only one equilibrium is possible
+            self.ss[ic].nEQ[ic1,ic]=1
+            self.ess.bases[self.ess.index[ic,ic1,ic] -1]= 1 
+
+
+            ####### START HERE 
+        # Player 1 is at the edge s=(x1,x2,c) with x1=c=min(mp.C) and x2>c
+        for ic2 in range(ic):
+            
+            x2 = self.C[ic2]
+            vI2 = self.r2(c,x2) - self.K(c) + self.beta* g2_ccc
+
+            vN2search = lambda x : self.r2(c,x2) + self.beta * self.Phi(x,vI2) - x
+
+            res = optimize.root(vN2search,x0 = vI2)
+            vN2 = res.x
+
+            P2 = vI2 > vN2
+
+
+            vN1 = ( self.r1(c,x2) + self.beta * (P2*g1_ccc+(1-P2)*self.Phi(0,-self.K(c))) )  /  ( 1-self.beta*(1-P2) )
+            vI1 = vN1 - self.K(c)
+            P1 = vI1 > vN1;
+
+
+            self.ss[ic].EQs[h,ic,ic2] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
+            
+            # Only one equilibrium is possible
+            self.ss[ic].nEQ[ic,ic2]=1
+            self.ess.bases[self.ess.index[ic,ic,ic2]-1]= 1 
+
+
+
+
+
+######### printing and plotting 
+    def print_eq(self,print_x = ['P1','vN1','vI1','P2','vN2','vI2'], layer=4, n_eq=1):
+        # print equilibrum for a single layer and equilbrium
+        for x in print_x:
+            vec = np.empty((layer,layer))
+            vec[:,:] =np.nan
+            for i in range(layer):
+                for j in range(layer):
+                    get = self.ss[layer-1].EQs[n_eq-1,i,j]
+                    if hasattr(get,x):
+                        vec[i,j] = getattr(get,x)
+
+            print(f'\n{x}:')
+            print(vec)

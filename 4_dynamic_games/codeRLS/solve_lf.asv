@@ -15,14 +15,7 @@ ss(4).nEQ
 
 ss(4).EQs(4,4,1).eq
 
-ss(4).EQs(4,4,2).eq
-
-ss(4).EQs(1,2,2).eq
-
-ESS.esr
-ESS.bases
-
-[ ss , ESS ] = lf.solve_corner(ss,3,ESS,mp)
+ss(4).EQs(1,1,2).eq
 
 
 %%
