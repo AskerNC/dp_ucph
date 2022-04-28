@@ -1,10 +1,12 @@
+from msilib.schema import Error
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import cm # for colormaps
 from scipy import optimize
-import copy
+import copy, math
 from types import SimpleNamespace
+
 #import pandas as pd
 
 class Lf_model():
@@ -65,6 +67,8 @@ class Lf_model():
         # create linear index 
         self.cESS()
 
+        # ESS, created by cESS, contains equilbriums for one world, we need a list of possible equilibria that we can then loop through
+        
 
 
 
@@ -110,7 +114,7 @@ class Lf_model():
             EQs = np.empty((5,i+1,i+1),dtype=object)
 
             ## allow for 5 equilibria, but there need to be at least one:
-            EQs[4,:,:]= SimpleNamespace(P1=[],vN1=[],vI1=[],P2=[],vN2=[],vI2=[])
+            EQs[0,:,:]= SimpleNamespace(P1=[],vN1=[],vI1=[],P2=[],vN2=[],vI2=[])
             
             self.ss[i].EQs = EQs # container for identified equilibriums
             self.ss[i].nEQ = np.zeros((i+1,i+1), dtype=int) #container for number of eqs in (x1,x2,c) point
@@ -213,6 +217,43 @@ class Lf_model():
 
 
     ##### solving the model 
+
+
+    def state_recursion(self,tau):
+
+        if tau == self.T:
+            self.solve_last_corner()
+            tau = tau-1
+        
+        if tau == self.T-1:
+            self.solve_last_edge()
+            tau = tau-1 
+        
+        if tau == self.T-2:
+            self.solve_last_interior()
+            tau = tau-1
+        
+        
+        while tau!=0: # infinite loop that breaks on tau=0
+            if tau%3==1:
+                ic = math.ceil((tau+2)/3)-1
+                self.solve_corner(ic)
+                tau = tau-1
+                if tau ==0: 
+                    break
+            
+            if tau%3==0:
+                ic = math.ceil((tau+2)/3)-1
+                self.solve_edge(ic)
+                tau = tau-1
+            
+            if tau%3==2:
+                ic = math.ceil((tau+2)/3)-1
+                self.solve_interior(ic)
+                tau = tau-1
+
+
+
 
 
     ## last 
@@ -391,12 +432,14 @@ class Lf_model():
                                 
 
                                 self.ss[ic].EQs[count-1, ic1, ic2] = SimpleNamespace(P1=pstar1[i],vN1=vN1,vI1= vI1,P2=pstar2[j],vN2=vN2,vI2= vI2)
-                            
+
+                                
+
                         elif i > 1 and j > 1 and pstar1[i] >= 0 and pstar2[j] >= 0 and pstar1[i] <= 1 and pstar2[j] <= 1:
                             count = count + 1
                             v1 = a + b * pstar2[j]
                             v2 = A + B * pstar1[i]
-                            self.ss[ic].EQs[count-1, ic1, ic2] = SimpleNamespace(P1=pstar1[i],vN1=v1,v1= vI1,P2=pstar2[j],vN2=v2,vI2= v2)
+                            self.ss[ic].EQs[count-1, ic1, ic2] = SimpleNamespace(P1=pstar1[i],vN1=v1,vI1= v1,P2=pstar2[j],vN2=v2,vI2= v2)
 
                 self.ss[ic].nEQ[ic1,ic2] = count
                 self.ess.bases[self.ess.index[ic,ic1,ic2] -1]= count
@@ -415,11 +458,23 @@ class Lf_model():
 
         # find index for equilibrium selection h=1 for simple selection rule
         # Need ic+1 because ss(ic+1).EQs(ic,ic,h).eq is to be accessed
-        h = self.ess.esr[self.ess.index[ic+1,ic,ic]-1] +1
+        h = self.ess.esr[self.ess.index[ic+1,ic,ic]-1]
 
         eq = self.ss[ic+1].EQs[h,ic,ic]
-
+        '''
+        try:
+            vN1 = (self.r1(c,c)+self.beta * p* np.maximum(eq.vN1, eq.vI1) + self.beta * (1-p) * np.maximum(0,-self.K(c) ) )  /  (1- (1-p)*self.beta)
+        except:
+            print('Error!:')
+            print('h','ic')
+            print(h,ic)
+            self.ess.esr
+            self.ess.index
+            sdfs
+            
+        '''
         vN1 = (self.r1(c,c)+self.beta * p* np.maximum(eq.vN1, eq.vI1) + self.beta * (1-p) * np.maximum(0,-self.K(c) ) )  /  (1- (1-p)*self.beta)
+
         vI1 = vN1 - self.K(c)
 
         vN2 = (self.r2(c,c)+self.beta * p* np.maximum(eq.vN2, eq.vI2) + self.beta * (1-p) * np.maximum(0,-self.K(c) ) )  /  (1- (1-p)*self.beta)
@@ -451,16 +506,21 @@ class Lf_model():
 
 
         def H1(iC1, iC2, iC):
-            index  = self.ess.esr(self.index(iC+1,iC1,iC2)-1)+1
+            index_p  = self.ess.esr[self.ess.index[iC+1,iC1,iC2]-1]
+            index  = self.ess.esr[self.ess.index[iC,iC1,iC2]-1]
             
-            eq_p = self.ss[iC+1].EQs[iC1, iC2, index].eq
-            eq   = self.ss[iC  ].EQs[iC1, iC2, index].eq
-            return p* self.Phi(eq_p.vN1,eq_p.vI1) + (1-p) *self.Phi(eq.vN1,eq.vI1) 
-        
+            eq_p = self.ss[iC+1].EQs[index_p,iC1, iC2]
+            eq   = self.ss[iC  ].EQs[index,iC1, iC2]
+            
+            
+            return p* self.Phi(eq_p.vN1,eq_p.vI1) + (1-p) *self.Phi(eq.vN1,eq.vI1)
+            
         def H2(iC1, iC2, iC):
-            index  = self.ess.esr(self.index(iC+1,iC1,iC2)-1)+1
-            eq_p = self.ss[iC+1].EQs[iC1, iC2, index].eq
-            eq   = self.ss[iC  ].EQs[iC1, iC2, index].eq
+            index_p  = self.ess.esr[self.ess.index[iC+1,iC1,iC2]-1]
+            index    = self.ess.esr[self.ess.index[iC  ,iC1,iC2]-1]
+
+            eq_p = self.ss[iC+1].EQs[index_p,iC1, iC2]
+            eq   = self.ss[iC  ].EQs[index,iC1, iC2]
             return p* self.Phi(eq_p.vN2,eq_p.vI2) + (1-p) *self.Phi(eq.vN2,eq.vI2) 
 
         #Efficiency ... why evaluate the call for each run of following loop? i is
@@ -470,11 +530,13 @@ class Lf_model():
         for ic1 in range(ic):
             
             c1 = self.C[ic1]
+            
+            
 
             vI1 = self.r1(c1,c) - self.K(c) + self.beta* H1(ic,ic,ic)
 
-            index = self.ess.esr[self.ess.index[ic+1,ic1,ic]-1 ]+1
-            eq_p = self.ss[ic+1].EQs[index,ic1,ic].eq
+            index = self.ess.esr[self.ess.index[ic+1,ic1,ic]-1 ]
+            eq_p = self.ss[ic+1].EQs[index,ic1,ic]
             
             def vN1search(z):
                 return self.r1(c1,c) + self.beta * ( p * ( np.maximum( eq_p.vN1,eq_p.vI1 ) ) + (1-p)* np.maximum(z,vI1) ) - z 
@@ -490,41 +552,164 @@ class Lf_model():
             vI2 = vN2 - self.K(c)
             P2 = vI2 > vN2;
 
-            self.ss[ic].EQs[1,ic1,ic] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
+            self.ss[ic].EQs[0,ic1,ic] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
             
             # Only one equilibrium is possible
             self.ss[ic].nEQ[ic1,ic]=1
             self.ess.bases[self.ess.index[ic,ic1,ic] -1]= 1 
 
 
-            ####### START HERE 
+            
         # Player 1 is at the edge s=(x1,x2,c) with x1=c=min(mp.C) and x2>c
         for ic2 in range(ic):
             
-            x2 = self.C[ic2]
-            vI2 = self.r2(c,x2) - self.K(c) + self.beta* g2_ccc
+            c2 = self.C[ic2]
+            vI2 = self.r2(c,c2) - self.K(c) + self.beta* H2(ic,ic,ic)
 
-            vN2search = lambda x : self.r2(c,x2) + self.beta * self.Phi(x,vI2) - x
+            index = self.ess.esr[self.ess.index[ic+1,ic,ic2]-1 ]
+            eq_p = self.ss[ic+1].EQs[index,ic,ic2]
+            
+            def vN2search(z):
+                return self.r2(c,c2) + self.beta * ( p * ( np.maximum( eq_p.vN2,eq_p.vI2 ) ) + (1-p)* np.maximum(z,vI2) ) - z 
+                
 
             res = optimize.root(vN2search,x0 = vI2)
             vN2 = res.x
 
             P2 = vI2 > vN2
 
-
-            vN1 = ( self.r1(c,x2) + self.beta * (P2*g1_ccc+(1-P2)*self.Phi(0,-self.K(c))) )  /  ( 1-self.beta*(1-P2) )
+            
+            vN1 = ( self.r1(c,c2) + self.beta * (P2*H2(ic,ic,ic)+(1-P2)*(p*self.Phi(eq_p.vN1,eq_p.vI1) + (1-p) * self.Phi(0,-self.K(c)) ) ) )   /  ( 1-self.beta*(1-P2)*(1-p) )
             vI1 = vN1 - self.K(c)
-            P1 = vI1 > vN1;
+            
+            P1 = vI1 > vN1
 
-
-            self.ss[ic].EQs[h,ic,ic2] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
+            self.ss[ic].EQs[0,ic,ic2] =  SimpleNamespace(P1=P1,vN1=vN1,vI1= vI1,P2=P2,vN2=vN2,vI2= vI2)
             
             # Only one equilibrium is possible
             self.ss[ic].nEQ[ic,ic2]=1
-            self.ess.bases[self.ess.index[ic,ic,ic2]-1]= 1 
+            self.ess.bases[self.ess.index[ic,ic,ic2] -1]= 1  
+            # No update of ESS.bases is necessary: "there can BE ONLY ONE
+			# equilibrium"  https://www.youtube.com/watch?v=sqcLjcSloXs
 
 
 
+    def solve_interior(self,ic):
+        #ss is state space structure with solutions for final layer edge and
+        # corner
+        # ic is the level of technology for which to solve
+        # ESS is struc with information holding ESS.esr being equilibrium selection
+        # rule and ESS.bases being the bases of the ESS.esr's
+        c=self.C[ic]
+
+        for ic1 in range(ic):
+            for ic2 in range(ic):
+                self.find_interior(ic1,ic2,ic,c)
+
+
+
+    def find_interior(self,ic1,ic2,ic,c):
+        p = self.p[ic]
+        q=1-p
+
+        # h is used for selected equilibrium in state realized when technology
+        # develops hence ic+1 in ESS.index(ic1,ic2,ic+1)
+        h = self.ess.esr[self.ess.index[ic+1,ic1,ic2]-1]
+        
+            
+        def H1(iC1, iC2, iC):
+            index_p  = self.ess.esr[self.ess.index[iC+1,iC1,iC2]-1]
+            index    = self.ess.esr[self.ess.index[iC  ,iC1,iC2]-1]
+
+            eq_p = self.ss[iC+1].EQs[index_p,iC1, iC2]
+            eq   = self.ss[iC  ].EQs[index,iC1, iC2]
+            
+            return p* self.Phi(eq_p.vN1,eq_p.vI1) + (1-p) *self.Phi(eq.vN1,eq.vI1) 
+        
+        def H2(iC1, iC2, iC):
+            index_p  = self.ess.esr[self.ess.index[iC+1,iC1,iC2]-1]
+            index    = self.ess.esr[self.ess.index[iC  ,iC1,iC2]-1]
+
+            eq_p = self.ss[iC+1].EQs[index_p,iC1, iC2]
+            eq   = self.ss[iC  ].EQs[index,iC1, iC2]
+            return p* self.Phi(eq_p.vN2,eq_p.vI2) + (1-p) *self.Phi(eq.vN2,eq.vI2) 
+
+        
+        a = self.r1( self.C[ic1],self.C[ic2] ) - self.K(c) + self.beta * H1(ic,ic2,ic)
+        b = self.beta * (   H1(ic,ic,ic) - H1(ic,ic2,ic)  ) 
+        
+        eq_p = self.ss[ic+1].EQs[h,ic1,ic2]
+        
+        d = self.r1( self.C[ic1],self.C[ic2] )   + self.beta * p * self.Phi(eq_p.vN1 , eq_p.vI1  ) 
+        e = self.beta * H1(ic1,ic,ic)         - self.beta * p * self.Phi( eq_p.vN1 , eq_p.vI1  ) 
+
+        pa = - self.beta * (1-p) * b
+        pb = e + ( self.beta * (1-p) -1) * b - self.beta * (1-p) * a
+        pc = d + ( self.beta * (1-p) -1 ) * a
+
+        # Solve for p2 mixed strategy ... but also returns 1 and 0 for pure
+        pstar2 = self.quad(pa,pb,pc)
+
+        A = self.r2(self.C[ic1],self.C[ic2]) - self.K(c) + self.beta * H2(ic1,ic,ic)
+        B = self.beta * ( H2(ic,ic,ic) - H2(ic1,ic,ic) )
+        D = self.r2(self.C[ic1],self.C[ic2]) + self.beta * p * self.Phi( eq_p.vN2 , eq_p.vI2 )
+        E = self.beta * H2(ic,ic2,ic)       - self.beta * p * self.Phi( eq_p.vN2 , eq_p.vI2 )
+
+        qa = - self.beta * (1-p) * B
+        qb = E + ( self.beta * (1-p) - 1 ) * B - self.beta * (1-p) * A
+        qc = D + ( self.beta * (1-p) - 1 ) * A
+
+        pstar1 = self.quad(qa, qb, qc)
+
+
+        count = 0
+
+
+        for i in range(len(pstar1)):
+            for j  in range(len(pstar2)):
+                if np.all( [k in [0,1] for k in [i,j] ] ): # these are pure strategies
+                    # If the polynomial is negative vI > vN
+                    # hence player invests set exPj=1 else 0
+                    # exP1 is best response to pstar2(j)
+                    exP1 = pc + pb * pstar2[j] + pa * pstar2[j]**2 < 0 
+                    exP2 = qc + qb * pstar1[i] + qa * pstar1[i]**2 < 0 
+
+                    # check if both are playing best response
+                    # in pure strategies. Players best response
+                    # should be equal to the candidate to which
+                    # the other player is best responding.
+                    if np.abs(exP1 - pstar1[i]) < 1e-7 and np.abs(exP2-pstar2[j]) < 1e-7:
+                        # if exP1=0 and pstar_i=0 true
+                        # if exP1=1 and pstar_i=1 true
+                        # Testing whether best response exP1 is
+                        # equal to pstar1(i) to which Player 2
+                        # is best responding ...
+                        count = count + 1;
+                        vI1 = a + b*pstar2[j] 
+                        vN1 = (d + e*pstar2[j] + self.beta*q*(1-pstar2[j])*(a+b*pstar2[j]))*pstar1[i]     +     (1-pstar1[i])*(d+e*pstar2[j])/(1-self.beta*q*(1-pstar2[j]))
+                        vI2 = A + B*pstar1[i]
+                        vN2 = (D + E*pstar1[i] + self.beta*q*(1-pstar1[i])*(A+B*pstar1[i]))*pstar2[j]     +     (1-pstar2[j])*(D+E*pstar1[i])/(1-self.beta*q*(1-pstar1[i]))
+
+                        #vN2 = (D +             + self.beta*q*(1          )*(A            ))*pstar2[j]     +     
+                        
+                        '''
+                        debugging:
+                        if ic1==0 and ic2==0:
+                            for name, value in zip(['vN2','A','B','D','E','q','pstar1','pstar2'],[vN2,A,B,D,E,q,pstar1[i],pstar2[j]]):
+                                print(name)
+                                print(value)
+                        '''
+
+                        self.ss[ic].EQs[count-1, ic1, ic2]   = SimpleNamespace(P1=pstar1[i],vN1=vN1,vI1= vI1,P2=pstar2[j],vN2=vN2,vI2= vI2)
+
+                elif i > 1 and j > 1 and pstar1[i] >= 0 and pstar2[j] >= 0 and pstar1[i] <= 1 and pstar2[j] <= 1:
+                    count = count + 1
+                    v1 = a + b * pstar2[j]
+                    v2 = A + B * pstar1[i]
+                    self.ss[ic].EQs[count-1, ic1, ic2] = SimpleNamespace(P1=pstar1[i],vN1=v1,vI1= v1,P2=pstar2[j],vN2=v2,vI2= v2)
+
+        self.ss[ic].nEQ[ic1,ic2] = count
+        self.ess.bases[self.ess.index[ic,ic1,ic2] -1]= count
 
 
 ######### printing and plotting 

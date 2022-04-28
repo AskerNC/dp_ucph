@@ -17,18 +17,40 @@ ss(4).EQs(4,4,1).eq
 
 ss(4).EQs(4,4,2).eq
 
-ss(4).EQs(1,2,2).eq
+ss(4).EQs(1,1,1).eq
 
 ESS.esr
 ESS.bases
 
 [ ss , ESS ] = lf.solve_corner(ss,3,ESS,mp)
+[ ss , ESS ] = lf.solve_edge(ss,3,ESS,mp)
+[ ss , ESS ] = lf.solve_interior(ss,3,ESS,mp)
+ss(3).nEQ
+
+ss(3).EQs(3,3,1).eq
+
+ss(3).EQs(3,2,1).eq
+
+ss(3).EQs(2,2,1).eq
+
+ss(3).EQs(1,1,1).eq
+
+ss(4).EQs(1,1,1).eq
+ESS.bases
 
 
+% min(find((ESS(iEQ+1).esr-ESS(iEQ).esr)~=0));
 %%
 
 Gtau= @(ss, ESS, tau) lf.state_recursion(ss,ESS, tau, mp);    
 [ESS, TAU, out]=rls.solve(Gtau,ss,ESS,mp.stage_index);
+
+%%
+id = 3;
+changeindex = min(find((ESS(id+1).esr-ESS(id).esr)~=0));
+tau = sum(changeindex<=mp.stage_index)-1; % tau0 is found
+tau
+%%
 
 number_of_equilibria=size(TAU, 1);
 T=numel(mp.stage_index);

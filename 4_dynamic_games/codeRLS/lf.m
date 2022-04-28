@@ -48,7 +48,8 @@ classdef lf
 	    mp.payoff= @(x) (mp.p-x).*mp.dt;  	 	% flow payoffs per unit time ... 
 	    mp.r1 = @(x1,x2) max(x2-x1,0)
     	mp.r2 = @(x1,x2) max(x1-x2,0)
-    	mp.Phi = @(vN,vI) max([vN ; vI]);
+    	%mp.Phi = @(vN,vI) max([vN ; vI]);
+		mp.Phi = @(vN,vI) max(vN , vI);
 		end
 
 		function [ss,ESS] = state_recursion(ss, ESS, tau, mp)	
@@ -444,7 +445,6 @@ classdef lf
 			% PURPOSE: Calculates expectations over technological development ...
 			% technological development occurs: ss(iC+1)
 			% technological development does not occur: ss(iC)
-
 			H1 = @(iC1, iC2, iC) p*mp.Phi(ss(iC+1).EQs(iC1, iC2, ESS.esr(ESS.index(iC1,iC2,iC+1))+1).eq.vN1,ss(iC+1).EQs(iC1, iC2, ESS.esr(ESS.index(iC1,iC2,iC+1))+1).eq.vI1) ...
 			+ (1-p)*mp.Phi(ss(iC).EQs(iC1, iC2, ESS.esr(ESS.index(iC1,iC2,iC))+1).eq.vN1,ss(iC).EQs(iC1, iC2, ESS.esr(ESS.index(iC1,iC2,iC))+1).eq.vI1);
 			H2 = @(iC1, iC2, iC) p*mp.Phi(ss(iC+1).EQs(iC1, iC2, ESS.esr(ESS.index(iC1,iC2,iC+1))+1).eq.vN2,ss(iC+1).EQs(iC1, iC2, ESS.esr(ESS.index(iC1,iC2,iC+1))+1).eq.vI2) ...
@@ -554,7 +554,7 @@ classdef lf
 
 			A = mp.r2(mp.C(ic1),mp.C(ic2)) - mp.K(c) + mp.beta * H2(ic1,ic,ic);
 			B = mp.beta * ( H2(ic,ic,ic) - H2(ic1,ic,ic) );
-			D = mp.r2(mp.C(ic1),mp.C(ic2)) + mp.beta * p * mp.Phi( ss(ic+1).EQs(ic1,ic2,h).eq.vN2 , ss(ic+1).EQs(ic1,ic2,h).eq.vI2 );
+			D = mp.r2(mp.C(ic1),mp.C(ic2)) + mp.beta * p *    mp.Phi( ss(ic+1).EQs(ic1,ic2,h).eq.vN2 , ss(ic+1).EQs(ic1,ic2,h).eq.vI2 );
 			E = mp.beta * H2(ic,ic2,ic)       - mp.beta * p * mp.Phi( ss(ic+1).EQs(ic1,ic2,h).eq.vN2 , ss(ic+1).EQs(ic1,ic2,h).eq.vI2 );
 
 			qa = - mp.beta * (1-p) * B;
@@ -572,15 +572,32 @@ classdef lf
 				     exP2 = qc + qb * pstar1(i) + qa * pstar1(i)^2 < 0 ;
 
 				    if abs(exP1 - pstar1(i)) < 1e-7 && abs(exP2-pstar2(j)) < 1e-7;
-			        count = count + 1;
-			        vI1 = a + b*pstar2(j);
-			        vN1 = (d + e*pstar2(j) + mp.beta*q*(1-pstar2(j))*(a+b*pstar2(j)))*pstar1(i)+(1-pstar1(i))*(d+e*pstar2(j))/(1-mp.beta*q*(1-pstar2(j)));
-			        vI2 = A + B*pstar1(i);
-			        vN2 = (D + E*pstar1(i) + mp.beta*q*(1-pstar1(i))*(A+B*pstar1(i)))*pstar2(j)+(1-pstar2(j))*(D+E*pstar1(i))/(1-mp.beta*q*(1-pstar1(i)));
-
-			        ss(ic).EQs(ic1, ic2, count).eq = lf.EQ(pstar1(i),vN1,vI1,pstar2(j),vN2,vI2);
+						count = count + 1;
+						vI1 = a + b*pstar2(j);
+						vN1 = (d + e*pstar2(j) + mp.beta*q*(1-pstar2(j))*( a + b*pstar2(j)) )*pstar1(i) + (1-pstar1(i))*(d+e*pstar2(j))/(1-mp.beta*q*(1-pstar2(j)));
+						vI2 = A + B*pstar1(i); 
+						vN2 = (D + E*pstar1(i) + mp.beta*q*(1-pstar1(i))*( A + B*pstar1(i)) )*pstar2(j) + (1-pstar2(j))*(D+E*pstar1(i) )/(1-mp.beta*q*(1-pstar1(i)));
+						
+						ss(ic).EQs(ic1, ic2, count).eq = lf.EQ(pstar1(i),vN1,vI1,pstar2(j),vN2,vI2);
+						
+						%if ic1 ==1 && ic2==1 
+						%	disp(vN2)
+						%	disp("A")
+						%	disp(A)
+						%	disp("B")
+						%	disp(B)
+						%	disp("D")
+						%	disp(D)
+						%	disp("E")
+						%	disp(E)
+						%	disp("q")
+						%	disp(q)
+						%	disp("pstar1")
+						%	disp(pstar1(i))
+						%	disp("pstar2")
+						%	disp(pstar2(j))
+						%end
 				    end
-				    
 				    elseif i > 2 && j > 2 && pstar1(i) >= 0 && pstar2(j) >= 0 && pstar1(i) <= 1 && pstar2(j) <= 1
 			        count = count + 1;
 			        v1 = a + b * pstar2(j);
