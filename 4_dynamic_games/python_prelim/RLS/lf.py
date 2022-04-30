@@ -6,6 +6,7 @@ from matplotlib import cm # for colormaps
 from scipy import optimize
 import copy, math
 from types import SimpleNamespace
+import pandas as pd
 
 #import pandas as pd
 
@@ -726,3 +727,45 @@ class Lf_model():
 
             print(f'\n{x}:')
             print(vec)
+
+
+    def print_equilibria(self,ESS,TAU,out,a = 10,d = 0.002):
+        number_of_equilibria=np.size(TAU)
+
+        print('\n')
+        print(f'{number_of_equilibria} equilibria found.')
+        T = np.size(self.stage_index)
+
+        y = np.zeros((T,),dtype=int);
+
+        for i in range(T):
+            y[i] = np.sum( TAU==i+1)
+
+        
+        plt.bar(np.array((range(len(y))) ) +1,y )
+        plt.title('Recursion start, frequencies')
+        plt.show()
+
+        print('STAGE       Recursion_started_in_stage :\n')
+        for i, x in enumerate(y):
+            print(f'{i+1:2}            {x:10}')
+
+
+
+
+
+        V = np.empty((number_of_equilibria,2))
+        MPEesr  = np.empty((number_of_equilibria,self.stage_index[-1].astype(int)))
+
+        for iEQ in range(number_of_equilibria):
+            V[iEQ,0]=out[iEQ].V1;
+            V[iEQ,1]=out[iEQ].V2;
+            MPEesr[iEQ,:]=out[iEQ].MPEesr; 
+        
+
+        
+        
+        df = pd.DataFrame(np.around(V, decimals=3)).rename(columns={0:'V1',1:'V2'})
+        vc = pd.DataFrame(df.value_counts()).reset_index()
+        vc['weight']= a + vc[0]/(d*np.max(vc[0]))
+        vc.plot.scatter(x='V1',y='V2',s='weight',figsize=(8,8) , title='Distrubution of value functions in equilibrium');

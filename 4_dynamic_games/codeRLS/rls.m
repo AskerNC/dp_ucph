@@ -2,8 +2,8 @@ classdef rls
   methods (Static)
 		function [ESS, TAU, out] = solve(G,ss,ESS0, stage_index)
 
-			rlsp.maxEQ  =  50000; % maximum number of iterations
-			rlsp.print  = 500;    % print every rlsp.print equilibria (0: no print, 1: print every, 2: print every second)
+			rlsp.maxEQ  =  10000000; % maximum number of iterations
+			rlsp.print  =    500000;    % print every rlsp.print equilibria (0: no print, 1: print every, 2: print every second)
 
 			% initialize matrices
 			TAU = NaN(rlsp.maxEQ,1);

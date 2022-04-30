@@ -1,5 +1,6 @@
 clear
-mp.nC=4;
+mp.nC=5;
+
 mp=lf.setup(mp)
 
 %% ------------- Initialize data containers ----------------
@@ -7,6 +8,7 @@ ss = lf.cSS(mp.nC);
 ESS = lf.cESS(mp.nC);
 
 %% test
+%{
 [ ss , ESS ] = lf.solve_last_corner( ss , ESS ,mp)
 [ ss , ESS ] = lf.solve_last_edge( ss , ESS , mp)
 [ ss , ESS ] = lf.solve_last_interior( ss , ESS , mp)
@@ -41,6 +43,8 @@ ESS.bases
 
 % min(find((ESS(iEQ+1).esr-ESS(iEQ).esr)~=0));
 %%
+%}
+
 
 Gtau= @(ss, ESS, tau) lf.state_recursion(ss,ESS, tau, mp);    
 [ESS, TAU, out]=rls.solve(Gtau,ss,ESS,mp.stage_index);
