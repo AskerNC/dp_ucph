@@ -50,10 +50,10 @@ Gtau= @(ss, ESS, tau) lf.state_recursion(ss,ESS, tau, mp);
 [ESS, TAU, out]=rls.solve(Gtau,ss,ESS,mp.stage_index);
 
 %%
-id = 3;
-changeindex = min(find((ESS(id+1).esr-ESS(id).esr)~=0));
-tau = sum(changeindex<=mp.stage_index)-1; % tau0 is found
-tau
+%id = 3;
+%changeindex = min(find((ESS(id+1).esr-ESS(id).esr)~=0));
+%tau = sum(changeindex<=mp.stage_index)-1; % tau0 is found
+%tau
 %%
 
 number_of_equilibria=size(TAU, 1);

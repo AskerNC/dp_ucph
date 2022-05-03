@@ -37,7 +37,7 @@ classdef rls
         
         iEQ = iEQ + 1;
 			end % End of recursive lexicographical search
-			TAU=TAU(1:iEQ);
+			TAU=TAU(1:iEQ-1);
 		end
 
 		function [out]=output(ss, ESS)
