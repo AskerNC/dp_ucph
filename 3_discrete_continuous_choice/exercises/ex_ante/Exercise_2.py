@@ -3,12 +3,16 @@ import numpy as np
 from scipy import interpolate
 import scipy.optimize as optimize
 import matplotlib.pyplot as plt
+import tools
 
 def util(c,par):
     return (c**(1.0-par.rho))/(1.0-par.rho)
 
 def marg_util(c,par):
     return c**(-par.rho)
+
+def inv_marg_util(u,par):
+    return u**(-1/par.rho)
 
 def setup():
     # Setup specifications in class. 
@@ -21,7 +25,7 @@ def setup():
     par.M = 10
     par.T = 10
     
-    # Gauss Hermite weights and poins
+    # Gauss Hermite weights and points
     par.num_shocks = 5
     x,w = gauss_hermite(par.num_shocks)
     par.eps = np.exp(par.sigma*np.sqrt(2)*x)
@@ -32,41 +36,24 @@ def setup():
     par.M_ini = 1.5
     
     # Grid
-    par.num_M = 100
-    par.grid_M = nonlinspace(1.0e-6,par.M,par.num_M,1.1) # same as np.linspace just with unequal spacing
-    
+    par.num_a = 100
+    #4. End of period assets
+    par.grid_a = nonlinspace(0 + 1e-8,par.M,par.num_a,1.1)
+
     # Dimension of value function space
-    par.dim = [par.num_M,par.T]
+    par.dim = [par.num_a,par.T]
     
     return par
 
-def solve_ti(par):
-     # initialize solution class
-    class sol: pass
-    sol.C = np.zeros(par.dim)
-    
-    # Last period, consume everything
-    sol.C[:,par.T-1] = par.grid_M
-    
-    # Loop over periods
-    for t in range(par.T-2, -1, -1):  #from period T-2, until period 0, backwards 
-    
-            x0 = np.ones(par.num_M)*1.0e-7 # Picking some arbitrary small starting value
-            
-            obj_fun = lambda x: euler_error_func(x,t,par,sol)
-            
-            res = optimize.fsolve(obj_fun, x0)
-            
-            # corner solution
-            I = res>par.grid_M
-            res[I] = par.grid_M[I]
-            
-            # final solution
-            sol.C[:,t] = res
-            
-        
+def EGM_loop (sol,t,par):
+    interp = interpolate.interp1d(sol.M[:,t+1],sol.C[:,t+1], bounds_error=False, fill_value = "extrapolate")  # Interpolation function
+    for i_a,a in enumerate(par.grid_a): # Loop over end-of-period assets
+        #Fill Inn while removing the continue statement
+        continue #Should be removed
+
     return sol
 
+<<<<<<< HEAD
 def euler_error_func(x,t,par,sol):
     
     c = x
@@ -77,19 +64,42 @@ def euler_error_func(x,t,par,sol):
     #m_next = par.R*(par.grid_M - c)[:,np.newaxis] + par.eps[np.newaxis,:] # creating a matrix with state grid points as rows and different shocks as columns
 
     #Fill in. Hint: create a matrix with state grid points as rows and add the different shocks as columns
+=======
+def EGM_vectorized (sol,t,par):
+>>>>>>> 3030ffd7e700e27926183e2f16b189d6719e82f6
 
-    interp = interpolate.interp1d(par.grid_M,sol.C[:,t+1], bounds_error=False, fill_value = "extrapolate") 
+    interp = interpolate.interp1d(sol.M[:,t+1],sol.C[:,t+1], bounds_error=False, fill_value = "extrapolate") # Interpolation function
 
-    c_next = interp(m_next)
+    # Fill inn
+    return sol
 
-    EU_next = np.sum(par.eps_w[np.newaxis,:]*marg_util(c_next,par), axis=1) # Expected marginal utility next period
-    
-    U_now = marg_util(c,par)    # Marginal utility this period
 
+<<<<<<< HEAD
     euler_error = U_now-par.beta*par.R*EU_next
 
     return euler_error
+=======
+def solve_EGM(par, vector = False):
+     # initialize solution class
+    class sol: pass
+    shape = [par.num_a+1, par.T]
+    sol.C = np.nan + np.zeros(shape)
+    sol.M = np.nan + np.zeros(shape)
+    # Last period, consume everything
+    sol.M[:,par.T-1] = nonlinspace(0,par.M,par.num_a+1,1.1)
+    sol.C[:,par.T-1]= sol.M[:,par.T-1].copy()
+>>>>>>> 3030ffd7e700e27926183e2f16b189d6719e82f6
 
+    # Loop over periods
+    for t in range(par.T-2, -1, -1):  #from period T-2, until period 0, backwards
+        if vector == True:
+            sol = EGM_vectorized(sol, t, par)
+        else:
+            sol = EGM_loop(sol, t, par)
+        # add zero consumption to account for borrowing constraint
+        sol.M[0,t] = 0
+        sol.C[0,t] = 0
+    return sol
 
 def gauss_hermite(n):
 
@@ -139,7 +149,7 @@ def simulate (par,sol):
 
     # Simulate 
     for t in range(par.T):
-        interp = interpolate.interp1d(par.grid_M,sol.C[:,t], bounds_error=False, fill_value = "extrapolate") 
+        interp = interpolate.interp1d(sol.M[:,t],sol.C[:,t], bounds_error=False, fill_value = "extrapolate") 
         sim.C[:,t] = interp(sim.M[:,t])  # Find consumption given state
     
         if t<par.T-1:  # if not last period

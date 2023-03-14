@@ -1,50 +1,55 @@
 # import packages used
 import numpy as np
 from scipy import interpolate
+import scipy.optimize as optimize
+import matplotlib.pyplot as plt
 
-def util(c,L,par):
-    return (c**(1.0-par.rho))/(1.0-par.rho)-par.lambdaa*L
+def util(c,par):
+    return (c**(1.0-par.rho))/(1.0-par.rho)
+
+def marg_util(c,par):
+    return c**(-par.rho)
 
 def setup():
+    # Setup specifications in class. 
     class par: pass
-
-    par.T = 10
-
-    # Model parameters
     par.beta = 0.98
     par.rho = 0.5
-    par.lambdaa = 1.3
     par.R = 1.0/par.beta
-    par.W = 1.0
-    par.sigma = 0.5
-    par.L = 2
-
-    # Cash-on-hand and consumption parameters
-    par.num_M = 100
-    par.M_max = 10
-    par.num_C = 100
-
+    par.sigma = 0.2
+    par.mu = 0
+    par.M = 10
+    par.T = 10
+    
+    # Gauss Hermite weights and poins
+    par.num_shocks = 5
+    x,w = gauss_hermite(par.num_shocks)
+    par.eps = np.exp(par.sigma*np.sqrt(2)*x)
+    par.eps_w = w/np.sqrt(np.pi)
+    
     # Simulation parameters
     par.simN = 10000
     par.M_ini = 1.5
-
-    #Grid of cash-on-hand and consumption
-    par.grid_M = nonlinspace(1.0e-6,par.M_max,par.num_M,1.1) # same as np.linspace just with unequal spacing
-    par.grid_C = np.linspace(1.0e-6,1.0,par.num_C)
+    
+    # Grid
+    par.num_M = 100
+    par.grid_M = nonlinspace(1.0e-6,par.M,par.num_M,1.1) # same as np.linspace just with unequal spacing
     
     # Dimension of value function space
-    par.dim = [par.L,par.num_M,par.T]
+    par.dim = [par.num_M,par.T]
     
     return par
 
-
-def solve_DC(par):
+def solve_ti(par):
      # initialize solution class
     class sol: pass
-    sol.V = np.zeros(par.dim) 
     sol.C = np.zeros(par.dim)
     
+    # Last period, consume everything
+    sol.C[:,par.T-1] = par.grid_M
+    
     # Loop over periods
+<<<<<<< HEAD
     for t in range(par.T-1, -1, -1):  #from last period until period 0, backwards 
         
         EV_next = 0
@@ -69,10 +74,29 @@ def solve_DC(par):
                 sol.C[L,im,t] = c[index]
                 sol.V[L,im,t] = np.amax(V_guess) 
                 
+=======
+    for t in range(par.T-2, -1, -1):  #from period T-2, until period 0, backwards 
+    
+            x0 = np.ones(par.num_M)*1.0e-7 # Picking some arbitrary small starting value
+            
+            obj_fun = lambda x: euler_error_func(x,t,par,sol)
+            
+            res = optimize.fsolve(obj_fun, x0)
+            
+            # corner solution
+            I = res>par.grid_M
+            res[I] = par.grid_M[I]
+            
+            # final solution
+            sol.C[:,t] = res
+            
+        
+>>>>>>> 3030ffd7e700e27926183e2f16b189d6719e82f6
     return sol
 
-def simulate (par,sol):
+def euler_error_func(x,t,par,sol):
     
+<<<<<<< HEAD
     # Initialize
     class sim: pass
     shape = (par.simN,par.T)
@@ -111,19 +135,40 @@ def simulate (par,sol):
 
         sim.C[I,t] = C0[I]   #Consumption for people working
         sim.C[~I,t] = C1[~I] # Consumption for people not working
+=======
+    c = x
+>>>>>>> 3030ffd7e700e27926183e2f16b189d6719e82f6
     
-        # Labour choice
-        sim.L[~I,t] = 0
-        sim.L[I,t] = 1
+    m_next = par.R*(par.grid_M - c)[:,np.newaxis] + par.eps[np.newaxis,:] # creating a matrix with state grid points as rows and different shocks as columns
 
-        # Next period
-        if t<par.T-1:  # if not last period
-            A = sim.M[:,t]-sim.C[:,t]
-            sim.M[:,t+1] = par.R*A + par.W*sim.L[:,t] # The state in the following period
-            
-     
-    return sim
+    interp = interpolate.interp1d(par.grid_M,sol.C[:,t+1], bounds_error=False, fill_value = "extrapolate") 
 
+    c_next = interp(m_next)
+
+    EU_next = np.sum(par.eps_w[np.newaxis,:]*marg_util(c_next,par), axis=1) # Expected marginal utility next period
+    
+    U_now = marg_util(c,par)    # Marginal utility this period
+
+    euler_error = U_now-par.beta*par.R*EU_next
+
+    return euler_error
+
+
+def gauss_hermite(n):
+
+    # a. calculations
+    i = np.arange(1,n)
+    a = np.sqrt(i/2)
+    CM = np.diag(a,1) + np.diag(a,-1)
+    L,V = np.linalg.eig(CM)
+    I = L.argsort()
+    V = V[:,I].T
+
+    # b. nodes and weights
+    x = L[I]
+    w = np.sqrt(np.pi)*V[:,0]**2
+
+    return x,w
 
 def nonlinspace(x_min, x_max, n, phi):
     """ like np.linspace between with unequal spacing
@@ -145,3 +190,27 @@ def nonlinspace(x_min, x_max, n, phi):
     assert np.all(np.diff(y) > 0)
  
     return y
+
+def simulate (par,sol):
+    
+    # Initialize
+    class sim: pass
+    dim = (par.simN,par.T)
+    sim.M = par.M_ini*np.ones(dim)
+    sim.C = np.nan +np.zeros(dim)
+    np.random.seed(2022)
+
+    # Simulate 
+    for t in range(par.T):
+        interp = interpolate.interp1d(par.grid_M,sol.C[:,t], bounds_error=False, fill_value = "extrapolate") 
+        sim.C[:,t] = interp(sim.M[:,t])  # Find consumption given state
+    
+        if t<par.T-1:  # if not last period
+            logY = np.random.normal(par.mu,par.sigma,par.simN)  # Draw random number from the normal distirbution
+            Y = np.exp(logY)
+            A = sim.M[:,t]-sim.C[:,t]
+        
+            sim.M[:,t+1] = par.R*A + Y # The state in the following period
+            
+     
+    return sim
